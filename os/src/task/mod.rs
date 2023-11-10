@@ -14,7 +14,10 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
+use crate::config::MAX_SYSCALL_NUM;
 use crate::config::MAX_APP_NUM;
+use crate::timer::get_time;
+use crate::config::CLOCK_FREQ;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use lazy_static::*;
@@ -54,6 +57,8 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
+            syscall_times: [0; MAX_SYSCALL_NUM],
+            start_time: None,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -76,11 +81,30 @@ impl TaskManager {
     ///
     /// Generally, the first task in task list is an idle task (we call it zero process later).
     /// But in ch3, we load apps statically, so the first task is a real app.
+    fn count_syscall(&self,syscall_id:usize){
+        if syscall_id < MAX_SYSCALL_NUM {
+            let mut inner = TASK_MANAGER.inner.exclusive_access();
+            let current_task = inner.current_task;
+            inner.tasks[current_task].syscall_times[syscall_id] += 1;
+        }
+    }
+
+    fn get_syscall_times(&self) -> [u32; MAX_SYSCALL_NUM]{
+        let inner = TASK_MANAGER.inner.exclusive_access();
+        inner.tasks[inner.current_task].syscall_times
+    }
+
+    fn get_current_task_status(&self) -> TaskStatus{
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].task_status
+    }
+
     fn run_first_task(&self) -> ! {
         let mut inner = self.inner.exclusive_access();
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
+        task0.start_time = Some(get_time());
         drop(inner);
         let mut _unused = TaskContext::zero_init();
         // before this, we should drop local variables that must be dropped manually
@@ -125,6 +149,9 @@ impl TaskManager {
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
+            if inner.tasks[next].start_time.is_none() {
+                inner.tasks[next].start_time = Some(get_time());
+            }
             drop(inner);
             // before this, we should drop local variables that must be dropped manually
             unsafe {
@@ -134,6 +161,11 @@ impl TaskManager {
         } else {
             panic!("All applications completed!");
         }
+    }
+
+    fn get_current_run_time(&self) -> usize {
+        let inner = TASK_MANAGER.inner.exclusive_access();
+        (get_time() - inner.tasks[inner.current_task].start_time.unwrap()) / (CLOCK_FREQ / 1000)
     }
 }
 
@@ -168,4 +200,24 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+#[allow(missing_docs)]
+pub fn count_syscall(syscall_id: usize){
+    TASK_MANAGER.count_syscall(syscall_id);
+}
+
+#[allow(missing_docs)]
+pub fn get_syscall_times() -> [u32; MAX_SYSCALL_NUM]{
+    TASK_MANAGER.get_syscall_times()
+}
+
+#[allow(missing_docs)]
+pub fn get_current_task_status() -> TaskStatus{
+    TASK_MANAGER.get_current_task_status()
+}
+
+#[allow(missing_docs)]
+pub fn get_current_run_time() -> usize {
+    TASK_MANAGER.get_current_run_time()
 }
