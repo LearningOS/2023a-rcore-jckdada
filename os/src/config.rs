@@ -1,7 +1,8 @@
 //! Constants in the kernel
 
 #[allow(unused)]
-
+#[allow(missing_docs)]
+pub const MAXVA: usize = usize::MAX;
 /// user app's stack size
 pub const USER_STACK_SIZE: usize = 4096 * 2;
 /// kernel stack size
@@ -19,6 +20,12 @@ pub const MAX_SYSCALL_NUM: usize = 500;
 pub const TRAMPOLINE: usize = usize::MAX - PAGE_SIZE + 1;
 /// the virtual addr of trap context
 pub const TRAP_CONTEXT_BASE: usize = TRAMPOLINE - PAGE_SIZE;
+#[allow(missing_docs)]
+pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
+    let top = TRAMPOLINE - app_id * (KERNEL_STACK_SIZE + PAGE_SIZE);
+    let bottom = top - KERNEL_STACK_SIZE;
+    (bottom, top)
+}
 /// clock frequency
 pub const CLOCK_FREQ: usize = 12500000;
 /// the physical memory end

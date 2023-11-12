@@ -14,7 +14,7 @@ use alloc::vec::Vec;
 use core::arch::asm;
 use lazy_static::*;
 use riscv::register::satp;
-
+use core::borrow::BorrowMut;
 extern "C" {
     fn stext();
     fn etext();
@@ -262,6 +262,11 @@ impl MemorySet {
             false
         }
     }
+    #[allow(unused)]
+    #[allow(missing_docs)]
+    pub fn get_page_table(&mut self) -> &mut PageTable {
+        self.page_table.borrow_mut()
+    }
 }
 /// map area structure, controls a contiguous piece of virtual memory
 pub struct MapArea {
@@ -380,6 +385,7 @@ bitflags! {
 }
 
 /// Return (bottom, top) of a kernel stack in kernel space.
+#[allow(dead_code)]
 pub fn kernel_stack_position(app_id: usize) -> (usize, usize) {
     let top = TRAMPOLINE - app_id * (KERNEL_STACK_SIZE + PAGE_SIZE);
     let bottom = top - KERNEL_STACK_SIZE;
