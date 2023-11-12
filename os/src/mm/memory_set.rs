@@ -5,6 +5,7 @@ use super::{PhysAddr, PhysPageNum, VirtAddr, VirtPageNum};
 use super::{StepByOne, VPNRange};
 use crate::config::{MEMORY_END, PAGE_SIZE, TRAMPOLINE, TRAP_CONTEXT_BASE, USER_STACK_SIZE};
 use crate::sync::UPSafeCell;
+use core::borrow::BorrowMut;
 use alloc::collections::BTreeMap;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
@@ -299,6 +300,11 @@ impl MemorySet {
         } else {
             false
         }
+    }
+    #[allow(unused)]
+    #[allow(missing_docs)]
+    pub fn get_page_table(&mut self) -> &mut PageTable {
+        self.page_table.borrow_mut()
     }
 }
 /// map area structure, controls a contiguous piece of virtual memory
